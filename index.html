@@ -40,6 +40,9 @@
   <!-- SheetJS (XLSX & CSV Parser) CDN -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
+  <!-- PptxGenJS (Export PowerPoint) CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+
   <!-- Font Awesome for clean icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 
@@ -136,6 +139,11 @@
           <button id="btnExportExcel" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-medium border border-white/20 transition" title="Ekspor seluruh 5 sheet ke file Excel (.xlsx)">
             <i class="fa-solid fa-file-excel text-emerald-300"></i>
             <span>Ekspor 5 Sheet</span>
+          </button>
+
+          <button id="btnExportPPT" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-medium border border-white/20 transition" title="Unduh laporan PowerPoint berdasarkan data tahun 2026">
+            <i class="fa-solid fa-file-powerpoint text-orange-300"></i>
+            <span>Unduh PPT 2026</span>
           </button>
 
           <button id="btnResetData" type="button" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/80 hover:bg-rose-500 text-white text-xs sm:text-sm font-medium transition">
@@ -1673,6 +1681,249 @@
     }
 
     // =========================================================================
+    // 6b. EKSPOR LAPORAN POWERPOINT TAHUN 2026
+    // =========================================================================
+    const REPORT_YEAR = 2026;
+
+    function exportPowerPoint2026() {
+      if (typeof PptxGenJS === 'undefined') {
+        showToast('Library Belum Termuat', 'PptxGenJS gagal dimuat dari CDN. Periksa koneksi internet lalu muat ulang halaman.', 'error');
+        return;
+      }
+      // Laporan tahunan memakai seluruh data (filter layar tidak diterapkan)
+      const data = state.rawData;
+      if (!data || data.length === 0) {
+        showToast('Data Kosong', 'Tidak ada data untuk dibuat menjadi presentasi.', 'error');
+        return;
+      }
+
+      // ---------- Agregasi ----------
+      const sumRows = (rows) => rows.reduce((a, d) => ({ t: a.t + d.target, r: a.r + d.realisasi }), { t: 0, r: 0 });
+      const pctOf = (r, t) => (t > 0 ? (r / t) * 100 : 0);
+      const total = sumRows(data);
+      const totalPct = pctOf(total.r, total.t);
+      const sisa = Math.max(0, total.t - total.r);
+      const deviasi = total.r - total.t;
+
+      const months = [...new Set(data.map(d => d.bulan))].sort((a, b) => {
+        const ia = MONTH_ORDER.indexOf(a), ib = MONTH_ORDER.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+      const monthArr = months.map(m => { const s = sumRows(data.filter(d => d.bulan === m)); return { name: m, ...s, pct: pctOf(s.r, s.t) }; });
+      const ulpArr = [...new Set(data.map(d => d.ulp))].map(u => { const s = sumRows(data.filter(d => d.ulp === u)); return { name: u, ...s, pct: pctOf(s.r, s.t) }; });
+      const segArr = [...new Set(data.map(d => d.segmen))].map(g => { const s = sumRows(data.filter(d => d.segmen === g)); return { name: g, ...s, pct: pctOf(s.r, s.t), share: pctOf(s.r, total.r) }; })
+        .sort((a, b) => b.r - a.r);
+
+      const ulpRank = [...ulpArr].sort((a, b) => b.pct - a.pct);
+      const topULP = ulpRank[0], lowULP = ulpRank[ulpRank.length - 1];
+      const topSeg = segArr[0];
+      const bestMonth = [...monthArr].sort((a, b) => b.r - a.r)[0];
+      const avgMonthly = total.r / monthArr.length;
+      const lastMonth = monthArr[monthArr.length - 1];
+      const firstMonth = monthArr[0];
+      const periodeLabel = monthArr.length > 1 ? `${firstMonth.name} – ${lastMonth.name} ${REPORT_YEAR}` : `${firstMonth.name} ${REPORT_YEAR}`;
+      const sumber = state.isCustomData ? `File: ${state.customFileName}` : 'Dataset simulasi';
+
+      // ---------- Tema ----------
+      const C = { navy: '0A2540', blue: '0072CE', cyan: '00A3E0', yellow: 'FFD100', light: 'F1F5F9', text: '0F172A', muted: '64748B', line: 'E2E8F0', green: '059669', amber: 'B45309', red: 'E11D48' };
+      const FONT = 'Calibri';
+      const statusColor = (p) => (p >= 100 ? C.green : p >= 85 ? C.amber : C.red);
+      const statusLabel = (p) => getStatusBadge(p).label;
+
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_WIDE'; // 13.33 x 7.5 in
+      pptx.title = `Dashboard Monitoring Pelanggan PLN UP3 Sorong ${REPORT_YEAR}`;
+      pptx.author = 'PLN UP3 Sorong – Pemasaran dan Niaga';
+      pptx.company = 'PT PLN (Persero)';
+
+      let slideNo = 0;
+      const baseSlide = (title, subtitle) => {
+        const s = pptx.addSlide();
+        slideNo++;
+        s.background = { color: 'FFFFFF' };
+        s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 1.05, fill: { color: C.navy }, line: { color: C.navy } });
+        s.addShape(pptx.ShapeType.rect, { x: 0, y: 1.05, w: 13.33, h: 0.06, fill: { color: C.yellow }, line: { color: C.yellow } });
+        s.addText(title, { x: 0.5, y: 0.12, w: 10.6, h: 0.5, fontFace: FONT, fontSize: 24, bold: true, color: 'FFFFFF' });
+        if (subtitle) s.addText(subtitle, { x: 0.5, y: 0.6, w: 10.6, h: 0.35, fontFace: FONT, fontSize: 13, color: 'BAE6FD' });
+        s.addText(`TAHUN ${REPORT_YEAR}`, { x: 11.2, y: 0.28, w: 1.7, h: 0.45, fontFace: FONT, fontSize: 14, bold: true, color: C.navy, align: 'center', valign: 'middle', fill: { color: C.yellow } });
+        s.addText('PLN UP3 Sorong – Pemasaran dan Niaga', { x: 0.5, y: 7.08, w: 8, h: 0.3, fontFace: FONT, fontSize: 10, color: C.muted });
+        s.addText(`Data Tahun ${REPORT_YEAR} • ${sumber}  |  ${slideNo}`, { x: 7.3, y: 7.08, w: 5.55, h: 0.3, fontFace: FONT, fontSize: 10, color: C.muted, align: 'right' });
+        return s;
+      };
+      const th = (t, align = 'center') => ({ text: t, options: { bold: true, color: 'FFFFFF', fill: { color: C.navy }, align, fontFace: FONT, fontSize: 12, valign: 'middle' } });
+      const td = (t, o = {}) => ({ text: String(t), options: { fontFace: FONT, fontSize: 12, color: C.text, align: 'center', valign: 'middle', ...o } });
+
+      // ---------- Slide 1: Judul ----------
+      {
+        const s = pptx.addSlide(); slideNo++;
+        s.background = { color: C.navy };
+        s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.35, h: 7.5, fill: { color: C.yellow }, line: { color: C.yellow } });
+        s.addText('PT PLN (PERSERO)', { x: 0.9, y: 1.4, w: 6, h: 0.4, fontFace: FONT, fontSize: 16, bold: true, color: C.navy, fill: { color: C.yellow }, align: 'center', valign: 'middle' });
+        s.addText('DASHBOARD MONITORING PELANGGAN', { x: 0.9, y: 2.1, w: 11.5, h: 1.0, fontFace: FONT, fontSize: 40, bold: true, color: 'FFFFFF' });
+        s.addText('PLN UP3 Sorong – Pemasaran dan Niaga', { x: 0.9, y: 3.15, w: 11.5, h: 0.6, fontFace: FONT, fontSize: 24, color: 'BAE6FD' });
+        s.addText(`Laporan Kinerja Tahun ${REPORT_YEAR}`, { x: 0.9, y: 4.2, w: 11.5, h: 0.5, fontFace: FONT, fontSize: 22, bold: true, color: C.yellow });
+        s.addText(`Periode data: ${periodeLabel}  •  Sumber: ${sumber}`, { x: 0.9, y: 4.8, w: 11.5, h: 0.4, fontFace: FONT, fontSize: 14, color: 'E2E8F0' });
+        s.addText(`Dibuat otomatis dari dashboard • ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: 0.9, y: 6.7, w: 11.5, h: 0.3, fontFace: FONT, fontSize: 11, color: '94A3B8' });
+      }
+
+      // ---------- Slide 2: Ringkasan KPI ----------
+      {
+        const s = baseSlide('Ringkasan Kinerja', `Akumulasi penambahan pelanggan ${periodeLabel}`);
+        const cards = [
+          { label: 'TARGET PELANGGAN', val: fmtNum(total.t), sub: `${monthArr.length} bulan berjalan`, color: C.navy },
+          { label: 'REALISASI PELANGGAN', val: fmtNum(total.r), sub: `Rata-rata ${fmtNum(avgMonthly)} plg/bulan`, color: C.blue },
+          { label: 'PENCAPAIAN', val: fmtPct(totalPct), sub: statusLabel(totalPct), color: statusColor(totalPct) },
+          { label: deviasi >= 0 ? 'KELEBIHAN TARGET' : 'SISA TARGET', val: fmtNum(deviasi >= 0 ? deviasi : sisa), sub: deviasi >= 0 ? 'Target terlampaui' : 'Pelanggan belum terealisasi', color: deviasi >= 0 ? C.green : C.amber }
+        ];
+        cards.forEach((c, i) => {
+          const x = 0.5 + i * 3.1;
+          s.addShape(pptx.ShapeType.roundRect, { x, y: 1.6, w: 2.9, h: 2.1, fill: { color: 'FFFFFF' }, line: { color: C.line, width: 1 }, rectRadius: 0.1, shadow: { type: 'outer', color: '000000', opacity: 0.12, blur: 6, offset: 2, angle: 90 } });
+          s.addShape(pptx.ShapeType.rect, { x, y: 1.6, w: 0.09, h: 2.1, fill: { color: c.color }, line: { color: c.color } });
+          s.addText(c.label, { x: x + 0.25, y: 1.75, w: 2.55, h: 0.35, fontFace: FONT, fontSize: 12, bold: true, color: C.muted });
+          s.addText(c.val, { x: x + 0.25, y: 2.1, w: 2.55, h: 0.8, fontFace: FONT, fontSize: 36, bold: true, color: c.color });
+          s.addText(c.sub, { x: x + 0.25, y: 2.95, w: 2.55, h: 0.5, fontFace: FONT, fontSize: 12, color: C.muted, valign: 'top' });
+        });
+        // Progress bar
+        s.addText('Progres pencapaian terhadap target', { x: 0.5, y: 4.2, w: 8, h: 0.35, fontFace: FONT, fontSize: 14, bold: true, color: C.navy });
+        s.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 4.65, w: 12.3, h: 0.4, fill: { color: C.line }, line: { color: C.line }, rectRadius: 0.2 });
+        s.addShape(pptx.ShapeType.roundRect, { x: 0.5, y: 4.65, w: Math.max(0.3, 12.3 * Math.min(totalPct, 100) / 100), h: 0.4, fill: { color: statusColor(totalPct) }, line: { color: statusColor(totalPct) }, rectRadius: 0.2 });
+        s.addText(fmtPct(totalPct), { x: 0.5, y: 4.65, w: 12.3, h: 0.4, fontFace: FONT, fontSize: 13, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' });
+        // Sorotan
+        s.addText([
+          { text: 'Sorotan', options: { bold: true, color: C.navy, fontSize: 14, breakLine: true } },
+          { text: `ULP tertinggi: ${topULP.name} (${fmtPct(topULP.pct)})  •  ULP terendah: ${lowULP.name} (${fmtPct(lowULP.pct)})`, options: { bullet: true, breakLine: true } },
+          { text: `Segmen terbesar: ${topSeg.name} (${fmtPct(topSeg.share)} dari total realisasi)`, options: { bullet: true, breakLine: true } },
+          { text: `Realisasi bulanan puncak: ${bestMonth.name} (${fmtNum(bestMonth.r)} pelanggan)`, options: { bullet: true } }
+        ], { x: 0.5, y: 5.3, w: 12.3, h: 1.6, fontFace: FONT, fontSize: 14, color: C.text, valign: 'top', paraSpaceAfter: 4 });
+      }
+
+      // ---------- Slide 3: Tren Bulanan ----------
+      {
+        const s = baseSlide('Tren Penambahan Pelanggan Bulanan', `Target vs realisasi per bulan, ${periodeLabel}`);
+        s.addChart(pptx.charts.LINE, [
+          { name: 'Target', labels: monthArr.map(m => m.name), values: monthArr.map(m => m.t) },
+          { name: 'Realisasi', labels: monthArr.map(m => m.name), values: monthArr.map(m => m.r) }
+        ], {
+          x: 0.4, y: 1.35, w: 8.6, h: 5.55, chartColors: [C.cyan, C.blue], lineSize: 3, lineDataSymbolSize: 8,
+          showLegend: true, legendPos: 'b', legendFontSize: 12, legendFontFace: FONT,
+          catAxisLabelFontSize: 12, valAxisLabelFontSize: 12, catAxisLabelFontFace: FONT, valAxisLabelFontFace: FONT,
+          valGridLine: { color: C.line, size: 0.75 }, catGridLine: { style: 'none' },
+          showValAxisTitle: true, valAxisTitle: 'Jumlah pelanggan', valAxisTitleFontSize: 11, valAxisTitleColor: C.muted
+        });
+        const prev = monthArr.length > 1 ? monthArr[monthArr.length - 2] : null;
+        const mom = prev && prev.r > 0 ? ((lastMonth.r - prev.r) / prev.r) * 100 : null;
+        s.addShape(pptx.ShapeType.roundRect, { x: 9.3, y: 1.5, w: 3.6, h: 5.3, fill: { color: C.light }, line: { color: C.line }, rectRadius: 0.1 });
+        s.addText([
+          { text: 'Catatan Tren', options: { bold: true, fontSize: 16, color: C.navy, breakLine: true } },
+          { text: `Rata-rata ${fmtNum(avgMonthly)} pelanggan/bulan.`, options: { bullet: true, breakLine: true } },
+          { text: `Puncak realisasi pada ${bestMonth.name}: ${fmtNum(bestMonth.r)} pelanggan.`, options: { bullet: true, breakLine: true } },
+          { text: `Bulan terakhir (${lastMonth.name}): ${fmtNum(lastMonth.r)} dari target ${fmtNum(lastMonth.t)} (${fmtPct(lastMonth.pct)}).`, options: { bullet: true, breakLine: true } },
+          ...(mom !== null ? [{ text: `Perubahan realisasi vs ${prev.name}: ${mom >= 0 ? '+' : ''}${mom.toFixed(1).replace('.', ',')}%.`, options: { bullet: true } }] : [])
+        ], { x: 9.5, y: 1.65, w: 3.2, h: 5.0, fontFace: FONT, fontSize: 13, color: C.text, valign: 'top', paraSpaceAfter: 8 });
+      }
+
+      // ---------- Slide 4: Monitoring ULP ----------
+      {
+        const s = baseSlide('Monitoring Kinerja per ULP', 'Target vs realisasi dan capaian tiap Unit Layanan Pelanggan');
+        s.addChart(pptx.charts.BAR, [
+          { name: 'Target', labels: ulpArr.map(u => u.name), values: ulpArr.map(u => u.t) },
+          { name: 'Realisasi', labels: ulpArr.map(u => u.name), values: ulpArr.map(u => u.r) }
+        ], {
+          x: 0.4, y: 1.35, w: 6.4, h: 5.55, barDir: 'col', barGrouping: 'clustered', chartColors: [C.cyan, C.blue],
+          showLegend: true, legendPos: 'b', legendFontSize: 12, showValue: true, dataLabelFontSize: 11, dataLabelFormatCode: '#,##0',
+          catAxisLabelFontSize: 12, valAxisLabelFontSize: 11, valGridLine: { color: C.line, size: 0.75 }, catGridLine: { style: 'none' }
+        });
+        const rows = [[th('ULP', 'left'), th('Target'), th('Realisasi'), th('Capaian'), th('Status')]];
+        ulpRank.forEach(u => rows.push([
+          td(u.name, { align: 'left', bold: true }), td(fmtNum(u.t)), td(fmtNum(u.r)),
+          td(fmtPct(u.pct), { bold: true, color: statusColor(u.pct) }), td(statusLabel(u.pct), { color: statusColor(u.pct), bold: true })
+        ]));
+        rows.push([td('TOTAL', { align: 'left', bold: true, fill: { color: C.light } }), td(fmtNum(total.t), { bold: true, fill: { color: C.light } }), td(fmtNum(total.r), { bold: true, fill: { color: C.light } }),
+          td(fmtPct(totalPct), { bold: true, fill: { color: C.light }, color: statusColor(totalPct) }), td(statusLabel(totalPct), { bold: true, fill: { color: C.light }, color: statusColor(totalPct) })]);
+        s.addTable(rows, { x: 7.0, y: 1.6, w: 5.9, colW: [1.7, 0.9, 1.0, 1.0, 1.3], rowH: 0.45, border: { type: 'solid', pt: 0.75, color: C.line }, fontFace: FONT });
+      }
+
+      // ---------- Slide 5: Segmen ----------
+      {
+        const s = baseSlide('Komposisi Segmen Pelanggan', 'Kontribusi realisasi penambahan pelanggan per segmen / jenis tarif');
+        s.addChart(pptx.charts.DOUGHNUT, [
+          { name: 'Realisasi', labels: segArr.map(g => g.name), values: segArr.map(g => g.r) }
+        ], {
+          x: 0.4, y: 1.35, w: 5.6, h: 5.55, holeSize: 55, chartColors: [C.blue, C.cyan, C.yellow, C.navy, '10B981', '8B5CF6'],
+          showPercent: true, showValue: false, showLegend: true, legendPos: 'b', legendFontSize: 12, dataLabelColor: 'FFFFFF', dataLabelFontSize: 12, dataLabelFontBold: true
+        });
+        const rows = [[th('Segmen', 'left'), th('Target'), th('Realisasi'), th('Capaian'), th('Kontribusi')]];
+        segArr.forEach(g => rows.push([
+          td(g.name, { align: 'left', bold: true }), td(fmtNum(g.t)), td(fmtNum(g.r)),
+          td(fmtPct(g.pct), { bold: true, color: statusColor(g.pct) }), td(fmtPct(g.share))
+        ]));
+        s.addTable(rows, { x: 6.3, y: 1.6, w: 6.6, colW: [1.9, 1.05, 1.25, 1.2, 1.2], rowH: 0.5, border: { type: 'solid', pt: 0.75, color: C.line }, fontFace: FONT });
+        s.addText(`Segmen ${topSeg.name} menjadi motor utama dengan ${fmtNum(topSeg.r)} pelanggan (${fmtPct(topSeg.share)} dari total realisasi).`,
+          { x: 6.3, y: 1.6 + 0.5 * (segArr.length + 1) + 0.3, w: 6.6, h: 0.9, fontFace: FONT, fontSize: 14, italic: true, color: C.navy, valign: 'top' });
+      }
+
+      // ---------- Slide 6: Tabel Bulanan ----------
+      {
+        const s = baseSlide('Rincian Bulanan', `Target, realisasi, deviasi, dan akumulasi, ${periodeLabel}`);
+        let cum = 0;
+        const rows = [[th('Bulan', 'left'), th('Target'), th('Realisasi'), th('Deviasi'), th('Capaian'), th('Realisasi Kumulatif')]];
+        monthArr.forEach(m => {
+          cum += m.r;
+          const dev = m.r - m.t;
+          rows.push([td(m.name, { align: 'left', bold: true }), td(fmtNum(m.t)), td(fmtNum(m.r)),
+            td(`${dev >= 0 ? '+' : ''}${fmtNum(dev)}`, { color: dev >= 0 ? C.green : C.red, bold: true }),
+            td(fmtPct(m.pct), { color: statusColor(m.pct), bold: true }), td(fmtNum(cum))]);
+        });
+        const f = { bold: true, fill: { color: C.light } };
+        rows.push([td('TOTAL', { ...f, align: 'left' }), td(fmtNum(total.t), f), td(fmtNum(total.r), f),
+          td(`${deviasi >= 0 ? '+' : ''}${fmtNum(deviasi)}`, { ...f, color: deviasi >= 0 ? C.green : C.red }), td(fmtPct(totalPct), { ...f, color: statusColor(totalPct) }), td(fmtNum(total.r), f)]);
+        const rowH = Math.min(0.42, 5.4 / rows.length);
+        s.addTable(rows, { x: 0.8, y: 1.45, w: 11.7, colW: [1.8, 1.8, 1.9, 1.9, 1.9, 2.4], rowH, border: { type: 'solid', pt: 0.75, color: C.line }, fontFace: FONT });
+      }
+
+      // ---------- Slide 7: Analisis & Evaluasi ----------
+      {
+        const s = baseSlide('Analisis & Evaluasi', `Temuan utama kinerja penambahan pelanggan ${REPORT_YEAR}`);
+        const items = [
+          { t: '1. ULP Tertinggi & Terendah', c: C.green, d: `${topULP.name} tertinggi dengan realisasi ${fmtNum(topULP.r)} dari target ${fmtNum(topULP.t)} (${fmtPct(topULP.pct)}). ${lowULP.name} terendah dengan capaian ${fmtPct(lowULP.pct)} (${fmtNum(lowULP.r)} dari ${fmtNum(lowULP.t)}).` },
+          { t: '2. Segmen Pertumbuhan Terbesar', c: C.blue, d: `Segmen ${topSeg.name} berkontribusi ${fmtNum(topSeg.r)} pelanggan atau ${fmtPct(topSeg.share)} dari seluruh sambungan baru yang terealisasi.` },
+          { t: '3. Tren Bulanan', c: C.cyan, d: `Selama ${monthArr.length} bulan data, rata-rata penambahan ${fmtNum(avgMonthly)} pelanggan/bulan. Realisasi tertinggi pada ${bestMonth.name} sebanyak ${fmtNum(bestMonth.r)} pelanggan.` },
+          { t: '4. Realisasi vs Target', c: deviasi >= 0 ? C.green : C.amber, d: `Realisasi ${fmtNum(total.r)} dibanding target ${fmtNum(total.t)} (capaian ${fmtPct(totalPct)}), deviasi ${deviasi >= 0 ? '+' : ''}${fmtNum(deviasi)} pelanggan.` }
+        ];
+        items.forEach((it, i) => {
+          const x = 0.5 + (i % 2) * 6.25, y = 1.5 + Math.floor(i / 2) * 2.7;
+          s.addShape(pptx.ShapeType.roundRect, { x, y, w: 6.05, h: 2.5, fill: { color: C.light }, line: { color: C.line }, rectRadius: 0.1 });
+          s.addShape(pptx.ShapeType.rect, { x, y, w: 0.09, h: 2.5, fill: { color: it.c }, line: { color: it.c } });
+          s.addText(it.t, { x: x + 0.3, y: y + 0.15, w: 5.6, h: 0.45, fontFace: FONT, fontSize: 17, bold: true, color: C.navy });
+          s.addText(it.d, { x: x + 0.3, y: y + 0.65, w: 5.6, h: 1.7, fontFace: FONT, fontSize: 16, color: C.text, valign: 'top' });
+        });
+      }
+
+      // ---------- Slide 8: Rekomendasi ----------
+      {
+        const s = baseSlide('Rekomendasi Percepatan Penambahan Pelanggan', 'Rencana tindak lanjut (action plan)');
+        const remaining = Math.max(1, 12 - monthArr.length);
+        const recs = [
+          `Akselerasi penyambungan baru dan pemasaran jemput bola di ${lowULP.name} (capaian ${fmtPct(lowULP.pct)}) melalui program bundling tambah daya dan penyambungan kolektif.`,
+          `Optimalkan momentum segmen ${topSeg.name} (${fmtPct(topSeg.share)} dari total realisasi) dan perluas kemitraan kawasan perumahan/komersial di ${topULP.name}.`,
+          sisa > 0
+            ? `Dibutuhkan rata-rata minimal ${fmtNum(Math.ceil(sisa / remaining))} pelanggan/bulan pada sisa periode untuk menutup sisa target ${fmtNum(sisa)} pelanggan.`
+            : `Target telah terlampaui (+${fmtNum(Math.abs(deviasi))} pelanggan). Pertahankan SLA kecepatan penyambungan dan akuisisi pelanggan potensial Bisnis/Industri.`
+        ];
+        recs.forEach((r, i) => {
+          const y = 1.6 + i * 1.75;
+          s.addShape(pptx.ShapeType.roundRect, { x: 0.5, y, w: 12.3, h: 1.55, fill: { color: i === 2 ? 'FFFBEB' : C.light }, line: { color: i === 2 ? 'FCD34D' : C.line }, rectRadius: 0.1 });
+          s.addText(String(i + 1), { x: 0.75, y: y + 0.35, w: 0.85, h: 0.85, shape: pptx.ShapeType.ellipse, fill: { color: C.yellow }, fontFace: FONT, fontSize: 28, bold: true, color: C.navy, align: 'center', valign: 'middle' });
+          s.addText(r, { x: 1.9, y: y + 0.15, w: 10.7, h: 1.25, fontFace: FONT, fontSize: 17, color: C.text, valign: 'middle' });
+        });
+      }
+
+      pptx.writeFile({ fileName: `Laporan_Monitoring_Pelanggan_PLN_UP3_Sorong_${REPORT_YEAR}.pptx` })
+        .then(() => showToast('PPT Berhasil Dibuat', `Presentasi ${slideNo} slide berdasarkan data tahun ${REPORT_YEAR} telah diunduh.`, 'success'))
+        .catch(err => { console.error(err); showToast('Gagal Membuat PPT', 'Terjadi kesalahan saat membuat presentasi. Cek konsol browser untuk detail.', 'error'); });
+    }
+
+    // =========================================================================
     // 7. NAVIGASI TAB & EVENT LISTENERS
     // =========================================================================
     function switchTab(tabId) {
@@ -1756,6 +2007,9 @@
 
       // Export 5 Sheets Excel
       document.getElementById('btnExportExcel').addEventListener('click', exportFiveSheetsExcel);
+
+      // Export PowerPoint Tahun 2026
+      document.getElementById('btnExportPPT').addEventListener('click', exportPowerPoint2026);
 
       // Reset to Default Simulation Data
       document.getElementById('btnResetData').addEventListener('click', () => {
