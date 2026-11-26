@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Monitoring Pelanggan | PLN UP3 Sorong – Pemasaran dan Niaga</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            pln: {
+              navy: '#0A2540',
+              blue: '#0072CE',
+              cyan: '#00A3E0',
+              yellow: '#FFD100',
+              gold: '#F59E0B',
+              light: '#F4F7FA',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- SheetJS (XLSX & CSV Parser) CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Font Awesome for clean icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <style>
+    /* Custom scrollbar & utility styling */
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F1F5F9;
+      color: #0F172A;
+    }
+    .glass-header {
+      background: linear-gradient(135deg, #071D36 0%, #0B3566 60%, #0072CE 100%);
+    }
+    .tab-active {
+      background-color: #FFFFFF;
+      color: #0072CE;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      border-bottom: 3px solid #FFD100;
+    }
+    .tab-inactive {
+      color: #E2E8F0;
+    }
+    .tab-inactive:hover {
+      background-color: rgba(255, 255, 255, 0.12);
+      color: #FFFFFF;
+    }
+    .card-elevated {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.03);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .card-elevated:hover {
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
+    }
+    /* Hide scrollbar for horizontal tab scroll on small screens */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Toast / Status Notification Banner (Replaces alert()) -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none"></div>
+
+  <!-- HEADER KORPORAT PLN -->
+  <header class="glass-header text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-3">
+      <!-- Top Row: Logo, Title, Data Source Status & Actions -->
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="flex items-start sm:items-center gap-3.5">
+          <!-- PLN Emblem SVG -->
+          <div class="w-12 h-12 rounded-xl bg-[#FFD100] flex items-center justify-center shadow-md shrink-0 border-2 border-white/30">
+            <svg class="w-7 h-7 text-[#0055A5]" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2L4.09 12.97H11L10 22L19.91 11.03H13L13 2Z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2.5 py-0.5 text-[11px] font-bold tracking-wider uppercase rounded-full bg-[#FFD100] text-[#071D36]">
+                PT PLN (Persero)
+              </span>
+              <span id="dataSourceBadge" class="px-2.5 py-0.5 text-[11px] font-medium rounded-full bg-white/15 text-cyan-100 border border-white/20">
+                <i class="fa-solid fa-database mr-1 text-[#FFD100]"></i> Dataset Simulasi (Jan–Nov)
+              </span>
+            </div>
+            <h1 class="text-lg sm:text-2xl font-extrabold tracking-tight mt-1 leading-snug">
+              DASHBOARD MONITORING PELANGGAN
+            </h1>
+            <p class="text-xs sm:text-sm text-sky-100 font-medium">
+              PLN UP3 SORONG – PEMASARAN DAN NIAGA &bull; <span id="headerPeriodeLabel" class="text-[#FFD100] font-semibold">Periode: Tahun Berjalan (Semua Bulan)</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Action Buttons: Upload File, Template, Reset, Export -->
+        <div class="flex flex-wrap items-center gap-2">
+          <label for="fileUploadInput" class="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#FFD100] hover:bg-amber-300 text-[#071D36] font-bold text-xs sm:text-sm shadow-sm transition">
+            <i class="fa-solid fa-file-arrow-up"></i>
+            <span>Upload CSV / Excel</span>
+          </label>
+          <input type="file" id="fileUploadInput" accept=".csv,.xlsx,.xls" class="hidden" />
+
+          <button id="btnDownloadTemplate" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-medium border border-white/20 transition" title="Unduh template CSV sesuai format 5 sheet">
+            <i class="fa-solid fa-file-csv text-[#FFD100]"></i>
+            <span>Template CSV</span>
+          </button>
+
+          <button id="btnExportExcel" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-medium border border-white/20 transition" title="Ekspor seluruh 5 sheet ke file Excel (.xlsx)">
+            <i class="fa-solid fa-file-excel text-emerald-300"></i>
+            <span>Ekspor 5 Sheet</span>
+          </button>
+
+          <button id="btnResetData" type="button" class="hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/80 hover:bg-rose-500 text-white text-xs sm:text-sm font-medium transition">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>Reset Data</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 5 SHEET NAVIGATION TABS -->
+      <nav aria-label="Navigasi Sheet Dashboard" class="mt-4 flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
+        <button data-tab="dashboard" class="sheet-tab tab-active px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold whitespace-nowrap flex items-center gap-2 transition">
+          <span class="w-5 h-5 rounded-md bg-blue-100 text-[#0072CE] text-[11px] font-extrabold flex items-center justify-center">1</span>
+          <span>Dashboard</span>
+        </button>
+        <button data-tab="data-pelanggan" class="sheet-tab tab-inactive px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-semibold whitespace-nowrap flex items-center gap-2 transition">
+          <span class="w-5 h-5 rounded-md bg-white/20 text-white text-[11px] font-bold flex items-center justify-center">2</span>
+          <span>Data Pelanggan</span>
+        </button>
+        <button data-tab="monitoring-ulp" class="sheet-tab tab-inactive px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-semibold whitespace-nowrap flex items-center gap-2 transition">
+          <span class="w-5 h-5 rounded-md bg-white/20 text-white text-[11px] font-bold flex items-center justify-center">3</span>
+          <span>Monitoring ULP</span>
+        </button>
+        <button data-tab="tren-bulanan" class="sheet-tab tab-inactive px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-semibold whitespace-nowrap flex items-center gap-2 transition">
+          <span class="w-5 h-5 rounded-md bg-white/20 text-white text-[11px] font-bold flex items-center justify-center">4</span>
+          <span>Tren Bulanan</span>
+        </button>
+        <button data-tab="analisis" class="sheet-tab tab-inactive px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-semibold whitespace-nowrap flex items-center gap-2 transition">
+          <span class="w-5 h-5 rounded-md bg-white/20 text-white text-[11px] font-bold flex items-center justify-center">5</span>
+          <span>Analisis &amp; Evaluasi</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- GLOBAL INTERACTIVE FILTER BAR -->
+  <section class="bg-white border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+        <!-- Filter Periode -->
+        <div class="lg:col-span-3">
+          <label for="filterPeriode" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <i class="fa-regular fa-calendar text-[#0072CE] mr-1"></i> Periode Monitoring
+          </label>
+          <select id="filterPeriode" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 focus:border-[#0072CE] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+            <option value="ALL">Tahun Berjalan (Semua Bulan)</option>
+          </select>
+        </div>
+
+        <!-- Filter ULP -->
+        <div class="lg:col-span-3">
+          <label for="filterULP" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <i class="fa-solid fa-building text-[#0072CE] mr-1"></i> Unit Layanan Pelanggan (ULP)
+          </label>
+          <select id="filterULP" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 focus:border-[#0072CE] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+            <option value="ALL">Semua ULP (UP3 Sorong)</option>
+          </select>
+        </div>
+
+        <!-- Filter Segmen / Tarif -->
+        <div class="lg:col-span-3">
+          <label for="filterSegmen" class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            <i class="fa-solid fa-layer-group text-[#0072CE] mr-1"></i> Segmen / Jenis Tarif
+          </label>
+          <select id="filterSegmen" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 focus:border-[#0072CE] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+            <option value="ALL">Semua Segmen Pelanggan</option>
+          </select>
+        </div>
+
+        <!-- Reset Filter & Info Record -->
+        <div class="lg:col-span-3 flex items-center justify-between sm:justify-end gap-2">
+          <span id="filteredRecordCount" class="text-xs text-slate-500 font-medium bg-slate-100 px-3 py-2 rounded-xl">
+            0 baris data
+          </span>
+          <button id="btnClearFilters" type="button" class="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-semibold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-filter-circle-xmark text-slate-500"></i>
+            <span>Reset Filter</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN WORKSPACE CONTENT -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- ===================================================================== -->
+    <!-- SHEET 1: DASHBOARD UTAMA                                              -->
+    <!-- ===================================================================== -->
+    <div id="view-dashboard" class="tab-view space-y-6">
+
+      <!-- 1. RINGKASAN KINERJA (4 KPI CARDS) -->
+      <section aria-labelledby="sec-kpi">
+        <div class="flex items-center justify-between mb-3">
+          <h2 id="sec-kpi" class="text-base sm:text-lg font-extrabold text-[#0A2540] flex items-center gap-2">
+            <span class="w-2 h-6 rounded-full bg-[#0072CE]"></span>
+            1. Ringkasan Kinerja
+          </h2>
+          <span class="text-xs text-slate-500 font-medium">Satuan: Pelanggan (Sambungan Baru / Tambah Pelanggan)</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- KPI 1: Target Pelanggan -->
+          <div class="card-elevated rounded-2xl p-5 border-l-4 border-l-[#0A2540]">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Target Pelanggan</p>
+                <p id="kpiTarget" class="text-2xl sm:text-3xl font-extrabold text-[#0A2540] mt-1.5">0</p>
+              </div>
+              <div class="w-11 h-11 rounded-xl bg-slate-100 text-[#0A2540] flex items-center justify-center text-lg">
+                <i class="fa-solid fa-bullseye"></i>
+              </div>
+            </div>
+            <p id="kpiTargetSub" class="text-xs text-slate-500 mt-3 flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-info text-slate-400"></i> Rencana kerja pemasaran
+            </p>
+          </div>
+
+          <!-- KPI 2: Realisasi Pelanggan -->
+          <div class="card-elevated rounded-2xl p-5 border-l-4 border-l-[#0072CE]">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Realisasi Pelanggan</p>
+                <p id="kpiRealisasi" class="text-2xl sm:text-3xl font-extrabold text-[#0072CE] mt-1.5">0</p>
+              </div>
+              <div class="w-11 h-11 rounded-xl bg-blue-50 text-[#0072CE] flex items-center justify-center text-lg">
+                <i class="fa-solid fa-user-check"></i>
+              </div>
+            </div>
+            <p id="kpiRealisasiSub" class="text-xs text-emerald-600 font-medium mt-3 flex items-center gap-1.5">
+              <i class="fa-solid fa-bolt"></i> Pelanggan tersambung aktif
+            </p>
+          </div>
+
+          <!-- KPI 3: Pencapaian (%) -->
+          <div class="card-elevated rounded-2xl p-5 border-l-4 border-l-[#FFD100]">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Pencapaian (%)</p>
+                <div class="flex items-baseline gap-2 mt-1.5">
+                  <p id="kpiPencapaian" class="text-2xl sm:text-3xl font-extrabold text-slate-900">0%</p>
+                  <span id="kpiPencapaianBadge" class="px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-100 text-emerald-700">
+                    On Track
+                  </span>
+                </div>
+              </div>
+              <div class="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-chart-line"></i>
+              </div>
+            </div>
+            <div class="w-full bg-slate-100 h-2 rounded-full mt-3 overflow-hidden">
+              <div id="kpiPencapaianBar" class="bg-[#0072CE] h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- KPI 4: Sisa Target -->
+          <div class="card-elevated rounded-2xl p-5 border-l-4 border-l-cyan-500">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Sisa Target</p>
+                <p id="kpiSisaTarget" class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5">0</p>
+              </div>
+              <div class="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-hourglass-half"></i>
+              </div>
+            </div>
+            <p id="kpiSisaSub" class="text-xs text-slate-500 mt-3 flex items-center gap-1.5">
+              <i class="fa-solid fa-flag-checkered text-cyan-600"></i> Kebutuhan pencapaian 100%
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. GRAFIK PERTUMBUHAN PELANGGAN & 4. MONITORING SEGMEN PELANGGAN -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- 2. Grafik Pertumbuhan Pelanggan (7 cols) -->
+        <section class="lg:col-span-7 card-elevated rounded-2xl p-5 flex flex-col justify-between">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 class="text-base sm:text-lg font-extrabold text-[#0A2540] flex items-center gap-2">
+                <span class="w-2 h-6 rounded-full bg-[#00A3E0]"></span>
+                2. Grafik Pertumbuhan Pelanggan
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">Perbandingan tren Target vs Realisasi penambahan pelanggan bulanan</p>
+            </div>
+            <div class="inline-flex rounded-xl bg-slate-100 p-1 self-start">
+              <button type="button" data-chart-mode="line" class="chart-mode-btn px-3 py-1 rounded-lg text-xs font-bold bg-white text-[#0072CE] shadow-sm">
+                Garis
+              </button>
+              <button type="button" data-chart-mode="bar" class="chart-mode-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900">
+                Batang
+              </button>
+            </div>
+          </div>
+
+          <div class="relative w-full h-72 sm:h-80">
+            <canvas id="growthChart"></canvas>
+          </div>
+        </section>
+
+        <!-- 4. Monitoring Segmen Pelanggan (5 cols) -->
+        <section class="lg:col-span-5 card-elevated rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <h2 class="text-base sm:text-lg font-extrabold text-[#0A2540] flex items-center gap-2">
+              <span class="w-2 h-6 rounded-full bg-[#FFD100]"></span>
+              4. Monitoring Segmen Pelanggan
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">Komposisi realisasi &amp; capaian per kelompok tarif pelanggan</p>
+          </div>
+
+          <div class="relative w-full h-52 my-3">
+            <canvas id="segmentChart"></canvas>
+          </div>
+
+          <!-- Compact Segment List -->
+          <div id="dashboardSegmentList" class="space-y-2 mt-2 border-t border-slate-100 pt-3">
+            <!-- Populated via JS -->
+          </div>
+        </section>
+      </div>
+
+      <!-- 3. MONITORING KINERJA PER ULP & 5. ANALISIS DAN EVALUASI -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- 3. Monitoring Kinerja per ULP (6 cols) -->
+        <section class="lg:col-span-6 card-elevated rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-base sm:text-lg font-extrabold text-[#0A2540] flex items-center gap-2">
+                <span class="w-2 h-6 rounded-full bg-[#0072CE]"></span>
+                3. Monitoring Kinerja per ULP
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">Rekapitulasi target, realisasi, dan persentase capaian unit</p>
+            </div>
+            <button type="button" onclick="switchTab('monitoring-ulp')" class="text-xs font-bold text-[#0072CE] hover:underline">
+              Detail ULP &rarr;
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50">
+                  <th class="py-3 px-3 rounded-tl-xl">ULP</th>
+                  <th class="py-3 px-3 text-right">Target</th>
+                  <th class="py-3 px-3 text-right">Realisasi</th>
+                  <th class="py-3 px-3 text-right">Capaian</th>
+                  <th class="py-3 px-3 rounded-tr-xl w-28">Progress</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardUlpTableBody" class="divide-y divide-slate-100 text-sm">
+                <!-- Populated via JS -->
+              </tbody>
+              <tfoot id="dashboardUlpTableFoot" class="bg-slate-50 font-bold text-sm border-t-2 border-slate-200">
+                <!-- Populated via JS -->
+              </tfoot>
+            </table>
+          </div>
+        </section>
+
+        <!-- 5. Analisis dan Evaluasi (6 cols) -->
+        <section class="lg:col-span-6 card-elevated rounded-2xl p-5 flex flex-col justify-between bg-gradient-to-br from-white to-slate-50">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="text-base sm:text-lg font-extrabold text-[#0A2540] flex items-center gap-2">
+                  <span class="w-2 h-6 rounded-full bg-emerald-500"></span>
+                  5. Analisis dan Evaluasi
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">Ringkasan evaluasi kinerja &amp; rekomendasi tindak lanjut otomatis</p>
+              </div>
+              <button type="button" onclick="switchTab('analisis')" class="text-xs font-bold text-[#0072CE] hover:underline">
+                Laporan Lengkap &rarr;
+              </button>
+            </div>
+
+            <div id="dashboardAnalysisCards" class="space-y-3">
+              <!-- Populated dynamically via JS -->
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- SHEET 2: DATA PELANGGAN (SUMBER DATA & UPLOAD)                        -->
+    <!-- ===================================================================== -->
+    <div id="view-data-pelanggan" class="tab-view hidden space-y-5">
+      <div class="card-elevated rounded-2xl p-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-[#0072CE]">Sheet 2 &bull; Data Sumber</span>
+            <h2 class="text-xl font-extrabold text-[#0A2540] mt-0.5">Data Pelanggan (Target &amp; Realisasi)</h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+              Menampilkan seluruh baris data sumber. Anda dapat mengunggah file CSV/Excel Anda sendiri melalui tombol <strong>Upload CSV / Excel</strong> di bagian atas untuk mengganti dataset ini secara instan.
+            </p>
+          </div>
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div class="relative">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="tableSearchInput" placeholder="Cari ULP, bulan, segmen..." class="pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-sm focus:border-[#0072CE] focus:outline-none w-full sm:w-64" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Info Kolom yang Didukung saat Upload -->
+        <div class="my-4 p-3.5 rounded-xl bg-blue-50/80 border border-blue-200/80 text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <strong class="text-[#0A2540]"><i class="fa-solid fa-circle-info text-[#0072CE] mr-1"></i> Format Kolom Fleksibel:</strong>
+            Mendukung kolom <code class="bg-white px-1.5 py-0.5 rounded border">Bulan</code> (atau Periode),
+            <code class="bg-white px-1.5 py-0.5 rounded border">ULP</code>,
+            <code class="bg-white px-1.5 py-0.5 rounded border">Segmen</code> (atau Tarif),
+            <code class="bg-white px-1.5 py-0.5 rounded border">Target</code>, dan
+            <code class="bg-white px-1.5 py-0.5 rounded border">Realisasi</code>.
+          </div>
+          <span id="rawTableSummary" class="font-bold text-[#0072CE] shrink-0">0 Baris</span>
+        </div>
+
+        <!-- Tabel Data Pelanggan -->
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-[#0A2540] text-white text-xs uppercase tracking-wider">
+                <th class="py-3 px-4">No</th>
+                <th class="py-3 px-4">Periode / Bulan</th>
+                <th class="py-3 px-4">ULP</th>
+                <th class="py-3 px-4">Segmen Pelanggan</th>
+                <th class="py-3 px-4 text-right">Target</th>
+                <th class="py-3 px-4 text-right">Realisasi</th>
+                <th class="py-3 px-4 text-right">Deviasi</th>
+                <th class="py-3 px-4 text-right">Capaian (%)</th>
+              </tr>
+            </thead>
+            <tbody id="rawDataTableBody" class="divide-y divide-slate-200 text-sm bg-white">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- SHEET 3: MONITORING ULP                                               -->
+    <!-- ===================================================================== -->
+    <div id="view-monitoring-ulp" class="tab-view hidden space-y-6">
+      <div class="card-elevated rounded-2xl p-5">
+        <div class="mb-4">
+          <span class="text-xs font-bold uppercase tracking-wider text-[#0072CE]">Sheet 3 &bull; Kinerja Unit Layanan</span>
+          <h2 class="text-xl font-extrabold text-[#0A2540] mt-0.5">Monitoring Kinerja per ULP – PLN UP3 Sorong</h2>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">Evaluasi detail target, realisasi, sisa target, dan rasio pencapaian masing-masing Unit Layanan Pelanggan.</p>
+        </div>
+
+        <!-- ULP Cards Grid -->
+        <div id="ulpDetailCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <!-- Populated via JS -->
+        </div>
+
+        <!-- ULP Bar Chart -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <div class="lg:col-span-7 bg-slate-50 rounded-2xl p-4 border border-slate-200">
+            <h3 class="text-sm font-bold text-[#0A2540] mb-3">Perbandingan Target vs Realisasi per ULP</h3>
+            <div class="relative w-full h-72">
+              <canvas id="ulpComparisonChart"></canvas>
+            </div>
+          </div>
+          <div class="lg:col-span-5 overflow-x-auto">
+            <table class="w-full text-left border-collapse rounded-xl overflow-hidden border border-slate-200">
+              <thead>
+                <tr class="bg-slate-100 text-slate-700 text-xs font-bold uppercase">
+                  <th class="py-3 px-3">ULP</th>
+                  <th class="py-3 px-3 text-right">Target</th>
+                  <th class="py-3 px-3 text-right">Realisasi</th>
+                  <th class="py-3 px-3 text-right">Sisa</th>
+                  <th class="py-3 px-3 text-right">Capaian</th>
+                </tr>
+              </thead>
+              <tbody id="ulpSheetTableBody" class="divide-y divide-slate-200 text-sm bg-white">
+                <!-- Populated via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- SHEET 4: TREN BULANAN                                                 -->
+    <!-- ===================================================================== -->
+    <div id="view-tren-bulanan" class="tab-view hidden space-y-6">
+      <div class="card-elevated rounded-2xl p-5">
+        <div class="mb-4">
+          <span class="text-xs font-bold uppercase tracking-wider text-[#0072CE]">Sheet 4 &bull; Dinamika Pertumbuhan</span>
+          <h2 class="text-xl font-extrabold text-[#0A2540] mt-0.5">Tren Pertumbuhan Pelanggan Bulanan</h2>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">Analisis pertumbuhan pelanggan setiap bulan, pertumbuhan kumulatif (Year-to-Date), serta deviasi terhadap rencana.</p>
+        </div>
+
+        <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-6">
+          <h3 class="text-sm font-bold text-[#0A2540] mb-3">Grafik Tren Bulanan &amp; Kumulatif</h3>
+          <div class="relative w-full h-80">
+            <canvas id="monthlyTrendFullChart"></canvas>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-[#0A2540] text-white text-xs uppercase tracking-wider">
+                <th class="py-3 px-4">Bulan</th>
+                <th class="py-3 px-4 text-right">Target Bulanan</th>
+                <th class="py-3 px-4 text-right">Realisasi Bulanan</th>
+                <th class="py-3 px-4 text-right">Deviasi</th>
+                <th class="py-3 px-4 text-right">Capaian Bulan (%)</th>
+                <th class="py-3 px-4 text-right">Target Kumulatif</th>
+                <th class="py-3 px-4 text-right">Realisasi Kumulatif</th>
+              </tr>
+            </thead>
+            <tbody id="monthlyTrendTableBody" class="divide-y divide-slate-200 text-sm bg-white">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- SHEET 5: ANALISIS & EVALUASI                                          -->
+    <!-- ===================================================================== -->
+    <div id="view-analisis" class="tab-view hidden space-y-6">
+      <div class="card-elevated rounded-2xl p-6">
+        <div class="border-b border-slate-200 pb-4 mb-6">
+          <span class="text-xs font-bold uppercase tracking-wider text-[#0072CE]">Sheet 5 &bull; Executive Summary</span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-[#0A2540] mt-0.5">Analisis, Evaluasi Deviasi &amp; Rekomendasi Strategis</h2>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            Ringkasan analitis yang dihasilkan secara otomatis dari data terfilter saat ini untuk mendukung pengambilan keputusan Bidang Pemasaran dan Niaga PLN UP3 Sorong.
+          </p>
+        </div>
+
+        <!-- 5 Key Evaluation Pillars -->
+        <div id="fullAnalysisContainer" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t border-slate-200 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <p class="font-semibold text-slate-700">
+        PT PLN (Persero) UP3 Sorong &ndash; Bidang Pemasaran dan Niaga
+      </p>
+      <p>
+        Dashboard Monitoring Pelanggan Interaktif &bull; Mendukung Impor CSV &amp; Excel (.xlsx/.xls)
+      </p>
+    </div>
+  </footer>
+
+  <!-- APPLICATION LOGIC -->
+  <script>
+    // =========================================================================
+    // 1. KONSTANTA & DATASET SIMULASI AWAL (PLN UP3 SORONG)
+    // =========================================================================
+    const MONTH_ORDER = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+
+    const MONTH_ALIASES = {
+      'januari': 'Jan', 'jan': 'Jan', '1': 'Jan', '01': 'Jan',
+      'februari': 'Feb', 'feb': 'Feb', '2': 'Feb', '02': 'Feb',
+      'maret': 'Mar', 'mar': 'Mar', '3': 'Mar', '03': 'Mar',
+      'april': 'Apr', 'apr': 'Apr', '4': 'Apr', '04': 'Apr',
+      'mei': 'Mei', 'may': 'Mei', '5': 'Mei', '05': 'Mei',
+      'juni': 'Jun', 'jun': 'Jun', '6': 'Jun', '06': 'Jun',
+      'juli': 'Jul', 'jul': 'Jul', '7': 'Jul', '07': 'Jul',
+      'agustus': 'Agu', 'agu': 'Agu', 'aug': 'Agu', '8': 'Agu', '08': 'Agu',
+      'september': 'Sep', 'sep': 'Sep', '9': 'Sep', '09': 'Sep',
+      'oktober': 'Okt', 'okt': 'Okt', 'oct': 'Okt', '10': 'Okt',
+      'november': 'Nov', 'nov': 'Nov', '11': 'Nov',
+      'desember': 'Des', 'des': 'Des', 'dec': 'Des', '12': 'Des'
+    };
+
+    const ULP_LIST = ['Sorong Kota', 'Aimas', 'Teminabuan', 'ULP lainnya'];
+    const SEGMEN_LIST = ['Rumah Tangga', 'Bisnis', 'Industri', 'Sosial', 'Pemerintah'];
+
+    // Dataset simulasi realistis untuk PLN UP3 Sorong (Jan–Nov)
+    // Didesain agar grafik pertumbuhan selaras dengan skala ilustrasi (80, 100, 120, 140, 160+)
+    function generateDefaultDataset() {
+      const monthlyProfiles = [
+        { bulan: 'Jan', factorT: 0.82, factorR: 0.78 },
+        { bulan: 'Feb', factorT: 0.95, factorR: 0.92 },
+        { bulan: 'Mar', factorT: 1.08, factorR: 1.12 },
+        { bulan: 'Apr', factorT: 1.22, factorR: 1.18 },
+        { bulan: 'Mei', factorT: 1.38, factorR: 1.44 },
+        { bulan: 'Jun', factorT: 1.45, factorR: 1.41 },
+        { bulan: 'Jul', factorT: 1.52, factorR: 1.58 },
+        { bulan: 'Agu', factorT: 1.60, factorR: 1.65 },
+        { bulan: 'Sep', factorT: 1.55, factorR: 1.49 },
+        { bulan: 'Okt', factorT: 1.68, factorR: 1.72 },
+        { bulan: 'Nov', factorT: 1.75, factorR: 1.69 }
+      ];
+
+      // Base bulanan per ULP & Segmen (total bulanan rata-rata ~100–175 pelanggan)
+      const baseMatrix = [
+        // Sorong Kota (pusat pertumbuhan tertinggi)
+        { ulp: 'Sorong Kota', segmen: 'Rumah Tangga', t: 28, r: 30 },
+        { ulp: 'Sorong Kota', segmen: 'Bisnis', t: 10, r: 11 },
+        { ulp: 'Sorong Kota', segmen: 'Industri', t: 3, r: 3 },
+        { ulp: 'Sorong Kota', segmen: 'Sosial', t: 3, r: 3 },
+        { ulp: 'Sorong Kota', segmen: 'Pemerintah', t: 2, r: 2 },
+        // Aimas (kawasan pengembangan & permukiman)
+        { ulp: 'Aimas', segmen: 'Rumah Tangga', t: 22, r: 23 },
+        { ulp: 'Aimas', segmen: 'Bisnis', t: 6, r: 6 },
+        { ulp: 'Aimas', segmen: 'Industri', t: 2, r: 2 },
+        { ulp: 'Aimas', segmen: 'Sosial', t: 2, r: 2 },
+        { ulp: 'Aimas', segmen: 'Pemerintah', t: 2, r: 2 },
+        // Teminabuan
+        { ulp: 'Teminabuan', segmen: 'Rumah Tangga', t: 11, r: 9 },
+        { ulp: 'Teminabuan', segmen: 'Bisnis', t: 3, r: 2 },
+        { ulp: 'Teminabuan', segmen: 'Industri', t: 1, r: 1 },
+        { ulp: 'Teminabuan', segmen: 'Sosial', t: 2, r: 2 },
+        { ulp: 'Teminabuan', segmen: 'Pemerintah', t: 1, r: 1 },
+        // ULP lainnya
+        { ulp: 'ULP lainnya', segmen: 'Rumah Tangga', t: 8, r: 7 },
+        { ulp: 'ULP lainnya', segmen: 'Bisnis', t: 2, r: 2 },
+        { ulp: 'ULP lainnya', segmen: 'Industri', t: 1, r: 0 },
+        { ulp: 'ULP lainnya', segmen: 'Sosial', t: 1, r: 1 },
+        { ulp: 'ULP lainnya', segmen: 'Pemerintah', t: 1, r: 1 }
+      ];
+
+      const rows = [];
+      monthlyProfiles.forEach((m, mIdx) => {
+        baseMatrix.forEach((item, idx) => {
+          const jitterT = ((mIdx + idx) % 3 === 0) ? 1 : 0;
+          const jitterR = ((mIdx * 2 + idx) % 4 === 0) ? 1 : 0;
+          const target = Math.max(1, Math.round(item.t * m.factorT) + jitterT);
+          const realisasi = Math.max(0, Math.round(item.r * m.factorR) + jitterR);
+          rows.push({
+            bulan: m.bulan,
+            ulp: item.ulp,
+            segmen: item.segmen,
+            target,
+            realisasi
+          });
+        });
+      });
+      return rows;
+    }
+
+    // =========================================================================
+    // 2. STATE APLIKASI
+    // =========================================================================
+    const state = {
+      rawData: generateDefaultDataset(),
+      isCustomData: false,
+      customFileName: '',
+      activeTab: 'dashboard',
+      chartMode: 'line', // 'line' atau 'bar'
+      filters: {
+        periode: 'ALL',
+        ulp: 'ALL',
+        segmen: 'ALL',
+        search: ''
+      },
+      charts: {
+        growth: null,
+        segment: null,
+        ulpComp: null,
+        monthlyFull: null
+      }
+    };
+
+    // =========================================================================
+    // 3. HELPER FORMAT & NOTIFIKASI
+    // =========================================================================
+    const fmtNum = (n) => new Intl.NumberFormat('id-ID').format(Math.round(n || 0));
+    const fmtPct = (n) => `${(n || 0).toFixed(1).replace('.', ',')}%`;
+
+    function showToast(title, message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const colors = {
+        success: 'bg-emerald-900 border-emerald-500 text-white',
+        error: 'bg-rose-900 border-rose-500 text-white',
+        info: 'bg-[#0A2540] border-[#00A3E0] text-white'
+      };
+      const icons = {
+        success: 'fa-circle-check text-emerald-400',
+        error: 'fa-triangle-exclamation text-rose-400',
+        info: 'fa-circle-info text-[#FFD100]'
+      };
+
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto rounded-xl border-l-4 p-4 shadow-xl transition-all duration-300 ${colors[type] || colors.info}`;
+      toast.innerHTML = `
+        <div class="flex items-start gap-3">
+          <i class="fa-solid ${icons[type] || icons.info} mt-0.5 text-base"></i>
+          <div class="flex-1 text-xs sm:text-sm">
+            <p class="font-bold">${title}</p>
+            <p class="text-white/85 mt-0.5 leading-relaxed">${message}</p>
+          </div>
+          <button type="button" class="text-white/60 hover:text-white text-xs" onclick="this.parentElement.parentElement.remove()">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentElement) toast.remove();
+      }, 5500);
+    }
+
+    function normalizeMonth(val) {
+      if (!val) return 'Jan';
+      const str = String(val).trim();
+      const lower = str.toLowerCase();
+      if (MONTH_ALIASES[lower]) return MONTH_ALIASES[lower];
+      // Cek kecocokan awalan 3 huruf
+      const prefix = lower.slice(0, 3);
+      if (MONTH_ALIASES[prefix]) return MONTH_ALIASES[prefix];
+      return str;
+    }
+
+    function getStatusBadge(pct) {
+      if (pct >= 100) {
+        return {
+          label: 'Tercapai',
+          badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+          barClass: 'bg-emerald-500',
+          textClass: 'text-emerald-600'
+        };
+      } else if (pct >= 85) {
+        return {
+          label: 'Mendekati',
+          badgeClass: 'bg-amber-100 text-amber-800 border border-amber-200',
+          barClass: 'bg-[#FFD100]',
+          textClass: 'text-amber-600'
+        };
+      } else {
+        return {
+          label: 'Perlu Akselerasi',
+          badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200',
+          barClass: 'bg-rose-500',
+          textClass: 'text-rose-600'
+        };
+      }
+    }
+
+    // =========================================================================
+    // 4. SINKRONISASI DROPDOWN FILTER & FILTERING ENGINE
+    // =========================================================================
+    function populateFilterOptions() {
+      const selPeriode = document.getElementById('filterPeriode');
+      const selULP = document.getElementById('filterULP');
+      const selSegmen = document.getElementById('filterSegmen');
+
+      const uniqueMonths = [...new Set(state.rawData.map(d => d.bulan))].sort((a, b) => {
+        const ia = MONTH_ORDER.indexOf(a);
+        const ib = MONTH_ORDER.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+
+      const uniqueULPs = [...new Set(state.rawData.map(d => d.ulp))];
+      const uniqueSegmens = [...new Set(state.rawData.map(d => d.segmen))];
+
+      selPeriode.innerHTML = `<option value="ALL">Tahun Berjalan (Semua Bulan)</option>` +
+        uniqueMonths.map(m => `<option value="${m}">Bulan ${m}</option>`).join('');
+
+      selULP.innerHTML = `<option value="ALL">Semua ULP (UP3 Sorong)</option>` +
+        uniqueULPs.map(u => `<option value="${u}">${u}</option>`).join('');
+
+      selSegmen.innerHTML = `<option value="ALL">Semua Segmen Pelanggan</option>` +
+        uniqueSegmens.map(s => `<option value="${s}">${s}</option>`).join('');
+
+      // Pertahankan nilai filter jika masih valid
+      if (!uniqueMonths.includes(state.filters.periode)) state.filters.periode = 'ALL';
+      if (!uniqueULPs.includes(state.filters.ulp)) state.filters.ulp = 'ALL';
+      if (!uniqueSegmens.includes(state.filters.segmen)) state.filters.segmen = 'ALL';
+
+      selPeriode.value = state.filters.periode;
+      selULP.value = state.filters.ulp;
+      selSegmen.value = state.filters.segmen;
+    }
+
+    function getFilteredData() {
+      return state.rawData.filter(row => {
+        const matchPeriode = state.filters.periode === 'ALL' || row.bulan === state.filters.periode;
+        const matchULP = state.filters.ulp === 'ALL' || row.ulp === state.filters.ulp;
+        const matchSegmen = state.filters.segmen === 'ALL' || row.segmen === state.filters.segmen;
+        return matchPeriode && matchULP && matchSegmen;
+      });
+    }
+
+    // =========================================================================
+    // 5. RENDER SEMUA KOMPONEN DASHBOARD & 5 SHEET
+    // =========================================================================
+    function renderAll() {
+      const filtered = getFilteredData();
+
+      // Update Header Subtitle & Counter
+      const periodeText = state.filters.periode === 'ALL'
+        ? 'Tahun Berjalan (Semua Bulan)'
+        : `Bulan ${state.filters.periode}`;
+      document.getElementById('headerPeriodeLabel').textContent = `Periode: ${periodeText}`;
+      document.getElementById('filteredRecordCount').textContent = `${fmtNum(filtered.length)} baris data aktif`;
+
+      // Hitung Agregat Utama
+      const totalTarget = filtered.reduce((acc, r) => acc + r.target, 0);
+      const totalRealisasi = filtered.reduce((acc, r) => acc + r.realisasi, 0);
+      const pencapaian = totalTarget > 0 ? (totalRealisasi / totalTarget) * 100 : 0;
+      const sisaTarget = Math.max(0, totalTarget - totalRealisasi);
+
+      renderKPIs(totalTarget, totalRealisasi, pencapaian, sisaTarget);
+      renderGrowthChart(filtered);
+      renderSegmentSection(filtered, totalRealisasi);
+      renderULPSection(filtered);
+      renderMonthlyTrendSheet(filtered);
+      renderAnalysisSection(filtered, totalTarget, totalRealisasi, pencapaian, sisaTarget);
+      renderRawDataTable(filtered);
+    }
+
+    // --- 5.1 KPI CARDS ---
+    function renderKPIs(target, realisasi, pencapaian, sisa) {
+      document.getElementById('kpiTarget').textContent = fmtNum(target);
+      document.getElementById('kpiRealisasi').textContent = fmtNum(realisasi);
+      document.getElementById('kpiPencapaian').textContent = fmtPct(pencapaian);
+      document.getElementById('kpiSisaTarget').textContent = sisa === 0 && realisasi >= target && target > 0
+        ? '0 (Terlampaui)'
+        : fmtNum(sisa);
+
+      const status = getStatusBadge(pencapaian);
+      const badgeEl = document.getElementById('kpiPencapaianBadge');
+      badgeEl.textContent = status.label;
+      badgeEl.className = `px-2 py-0.5 text-[11px] font-bold rounded-full ${status.badgeClass}`;
+
+      const barEl = document.getElementById('kpiPencapaianBar');
+      barEl.style.width = `${Math.min(100, pencapaian)}%`;
+      barEl.className = `${status.barClass} h-full rounded-full transition-all duration-500`;
+    }
+
+    // --- 5.2 GRAFIK PERTUMBUHAN PELANGGAN (SHEET 1) ---
+    function renderGrowthChart(filtered) {
+      // Untuk grafik pertumbuhan, jika user memilih bulan tertentu kita tetap tampilkan konteks bulanan (dengan highlight)
+      // atau gunakan data yang sesuai filter ULP & Segmen agar tren terlihat jelas.
+      const contextData = state.rawData.filter(row => {
+        const matchULP = state.filters.ulp === 'ALL' || row.ulp === state.filters.ulp;
+        const matchSegmen = state.filters.segmen === 'ALL' || row.segmen === state.filters.segmen;
+        return matchULP && matchSegmen;
+      });
+
+      const months = [...new Set(contextData.map(d => d.bulan))].sort((a, b) => {
+        const ia = MONTH_ORDER.indexOf(a);
+        const ib = MONTH_ORDER.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+
+      const targetSeries = months.map(m =>
+        contextData.filter(d => d.bulan === m).reduce((s, d) => s + d.target, 0)
+      );
+      const realisasiSeries = months.map(m =>
+        contextData.filter(d => d.bulan === m).reduce((s, d) => s + d.realisasi, 0)
+      );
+
+      const ctx = document.getElementById('growthChart').getContext('2d');
+      if (state.charts.growth) state.charts.growth.destroy();
+
+      const isLine = state.chartMode === 'line';
+
+      state.charts.growth = new Chart(ctx, {
+        type: isLine ? 'line' : 'bar',
+        data: {
+          labels: months,
+          datasets: [
+            {
+              label: 'Target Pelanggan',
+              data: targetSeries,
+              borderColor: '#0A2540',
+              backgroundColor: isLine ? 'rgba(10, 37, 64, 0.08)' : 'rgba(10, 37, 64, 0.85)',
+              borderWidth: 2.5,
+              borderDash: isLine ? [6, 4] : [],
+              pointRadius: 4,
+              pointBackgroundColor: '#0A2540',
+              tension: 0.32,
+              borderRadius: isLine ? 0 : 6
+            },
+            {
+              label: 'Realisasi Pelanggan',
+              data: realisasiSeries,
+              borderColor: '#0072CE',
+              backgroundColor: isLine ? 'rgba(0, 114, 206, 0.16)' : 'rgba(0, 114, 206, 0.9)',
+              borderWidth: 3,
+              fill: isLine,
+              pointRadius: 5,
+              pointBackgroundColor: '#FFD100',
+              pointBorderColor: '#0072CE',
+              pointBorderWidth: 2,
+              tension: 0.32,
+              borderRadius: isLine ? 0 : 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                font: { family: 'Inter', weight: '600', size: 12 }
+              }
+            },
+            tooltip: {
+              backgroundColor: '#0A2540',
+              titleFont: { family: 'Inter', weight: '700', size: 13 },
+              bodyFont: { family: 'Inter', size: 12 },
+              padding: 12,
+              cornerRadius: 10,
+              callbacks: {
+                afterBody: function(items) {
+                  if (items.length >= 2) {
+                    const t = items[0].parsed.y || 0;
+                    const r = items[1].parsed.y || 0;
+                    const pct = t > 0 ? ((r / t) * 100).toFixed(1) : '0.0';
+                    return `Capaian: ${pct}% (${r - t >= 0 ? '+' : ''}${r - t} plg)`;
+                  }
+                  return '';
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false,
+              grid: { color: '#E2E8F0' },
+              ticks: {
+                font: { family: 'Inter', size: 11 },
+                color: '#475569'
+              }
+            },
+            x: {
+              grid: { display: false },
+              ticks: {
+                font: { family: 'Inter', weight: '600', size: 11 },
+                color: '#334155'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // --- 5.3 MONITORING SEGMEN PELANGGAN ---
+    function renderSegmentSection(filtered, totalRealisasi) {
+      const segmens = [...new Set([...SEGMEN_LIST, ...filtered.map(d => d.segmen)])];
+      const agg = segmens.map(seg => {
+        const rows = filtered.filter(d => d.segmen === seg);
+        const target = rows.reduce((s, d) => s + d.target, 0);
+        const realisasi = rows.reduce((s, d) => s + d.realisasi, 0);
+        const share = totalRealisasi > 0 ? (realisasi / totalRealisasi) * 100 : 0;
+        const capaian = target > 0 ? (realisasi / target) * 100 : 0;
+        return { segmen: seg, target, realisasi, share, capaian };
+      }).filter(item => item.target > 0 || item.realisasi > 0);
+
+      const palette = ['#0072CE', '#00A3E0', '#FFD100', '#0A2540', '#10B981', '#8B5CF6'];
+
+      // Render Doughnut Chart
+      const ctx = document.getElementById('segmentChart').getContext('2d');
+      if (state.charts.segment) state.charts.segment.destroy();
+
+      state.charts.segment = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: agg.map(a => a.segmen),
+          datasets: [{
+            data: agg.map(a => a.realisasi),
+            backgroundColor: agg.map((_, i) => palette[i % palette.length]),
+            borderWidth: 2,
+            borderColor: '#FFFFFF',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '64%',
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                boxWidth: 12,
+                usePointStyle: true,
+                font: { family: 'Inter', size: 11, weight: '600' }
+              }
+            },
+            tooltip: {
+              backgroundColor: '#0A2540',
+              callbacks: {
+                label: (ctx) => {
+                  const item = agg[ctx.dataIndex];
+                  return ` ${item.segmen}: ${fmtNum(item.realisasi)} plg (${fmtPct(item.share)})`;
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Render List di bawah chart
+      const listEl = document.getElementById('dashboardSegmentList');
+      listEl.innerHTML = agg.map((item, idx) => `
+        <div class="flex items-center justify-between text-xs py-1">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${palette[idx % palette.length]}"></span>
+            <span class="font-semibold text-slate-700">${item.segmen}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-slate-500">Target: <strong class="text-slate-700">${fmtNum(item.target)}</strong></span>
+            <span class="font-bold text-[#0072CE]">${fmtNum(item.realisasi)} plg</span>
+            <span class="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-700 w-14 text-right">${fmtPct(item.capaian)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // --- 5.4 MONITORING KINERJA PER ULP (SHEET 1 & SHEET 3) ---
+    function renderULPSection(filtered) {
+      const ulps = [...new Set([...ULP_LIST, ...filtered.map(d => d.ulp)])];
+      const agg = ulps.map(ulp => {
+        const rows = filtered.filter(d => d.ulp === ulp);
+        const target = rows.reduce((s, d) => s + d.target, 0);
+        const realisasi = rows.reduce((s, d) => s + d.realisasi, 0);
+        const sisa = Math.max(0, target - realisasi);
+        const capaian = target > 0 ? (realisasi / target) * 100 : 0;
+        return { ulp, target, realisasi, sisa, capaian };
+      }).filter(item => item.target > 0 || item.realisasi > 0 || ULP_LIST.includes(item.ulp));
+
+      // Tabel Ringkas di Tab 1 (Dashboard)
+      const tbody = document.getElementById('dashboardUlpTableBody');
+      tbody.innerHTML = agg.map(item => {
+        const st = getStatusBadge(item.capaian);
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3 px-3 font-bold text-slate-800">${item.ulp}</td>
+            <td class="py-3 px-3 text-right text-slate-600">${fmtNum(item.target)}</td>
+            <td class="py-3 px-3 text-right font-bold text-[#0072CE]">${fmtNum(item.realisasi)}</td>
+            <td class="py-3 px-3 text-right font-bold ${st.textClass}">${fmtPct(item.capaian)}</td>
+            <td class="py-3 px-3">
+              <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div class="${st.barClass} h-full rounded-full" style="width: ${Math.min(100, item.capaian)}%"></div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      const sumT = agg.reduce((s, a) => s + a.target, 0);
+      const sumR = agg.reduce((s, a) => s + a.realisasi, 0);
+      const sumPct = sumT > 0 ? (sumR / sumT) * 100 : 0;
+
+      document.getElementById('dashboardUlpTableFoot').innerHTML = `
+        <tr>
+          <td class="py-3 px-3 text-[#0A2540]">TOTAL UP3 SORONG</td>
+          <td class="py-3 px-3 text-right text-slate-800">${fmtNum(sumT)}</td>
+          <td class="py-3 px-3 text-right text-[#0072CE]">${fmtNum(sumR)}</td>
+          <td class="py-3 px-3 text-right text-[#0A2540]">${fmtPct(sumPct)}</td>
+          <td class="py-3 px-3">
+            <span class="px-2 py-0.5 text-[10px] rounded-full ${getStatusBadge(sumPct).badgeClass}">
+              ${getStatusBadge(sumPct).label}
+            </span>
+          </td>
+        </tr>
+      `;
+
+      // Sheet 3: ULP Detail Cards
+      const cardsGrid = document.getElementById('ulpDetailCardsGrid');
+      cardsGrid.innerHTML = agg.map(item => {
+        const st = getStatusBadge(item.capaian);
+        return `
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-extrabold text-[#0A2540]">${item.ulp}</span>
+              <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${st.badgeClass}">${st.label}</span>
+            </div>
+            <div class="mt-3 flex items-baseline justify-between">
+              <div>
+                <p class="text-[11px] text-slate-500">Realisasi / Target</p>
+                <p class="text-lg font-extrabold text-[#0072CE]">${fmtNum(item.realisasi)} <span class="text-xs font-normal text-slate-500">/ ${fmtNum(item.target)}</span></p>
+              </div>
+              <p class="text-xl font-extrabold ${st.textClass}">${fmtPct(item.capaian)}</p>
+            </div>
+            <div class="w-full bg-slate-200 h-2 rounded-full mt-2.5 overflow-hidden">
+              <div class="${st.barClass} h-full rounded-full" style="width: ${Math.min(100, item.capaian)}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Sheet 3: Table & Chart
+      document.getElementById('ulpSheetTableBody').innerHTML = agg.map(item => `
+        <tr class="hover:bg-slate-50">
+          <td class="py-3 px-3 font-bold text-slate-800">${item.ulp}</td>
+          <td class="py-3 px-3 text-right">${fmtNum(item.target)}</td>
+          <td class="py-3 px-3 text-right font-bold text-[#0072CE]">${fmtNum(item.realisasi)}</td>
+          <td class="py-3 px-3 text-right text-slate-500">${fmtNum(item.sisa)}</td>
+          <td class="py-3 px-3 text-right font-bold ${getStatusBadge(item.capaian).textClass}">${fmtPct(item.capaian)}</td>
+        </tr>
+      `).join('');
+
+      const ctxUlp = document.getElementById('ulpComparisonChart').getContext('2d');
+      if (state.charts.ulpComp) state.charts.ulpComp.destroy();
+      state.charts.ulpComp = new Chart(ctxUlp, {
+        type: 'bar',
+        data: {
+          labels: agg.map(a => a.ulp),
+          datasets: [
+            {
+              label: 'Target',
+              data: agg.map(a => a.target),
+              backgroundColor: '#0A2540',
+              borderRadius: 6
+            },
+            {
+              label: 'Realisasi',
+              data: agg.map(a => a.realisasi),
+              backgroundColor: '#0072CE',
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // --- 5.5 SHEET 4: TREN BULANAN ---
+    function renderMonthlyTrendSheet(filtered) {
+      const months = [...new Set(filtered.map(d => d.bulan))].sort((a, b) => {
+        const ia = MONTH_ORDER.indexOf(a);
+        const ib = MONTH_ORDER.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+
+      let cumT = 0;
+      let cumR = 0;
+      const rows = months.map(m => {
+        const mRows = filtered.filter(d => d.bulan === m);
+        const t = mRows.reduce((s, d) => s + d.target, 0);
+        const r = mRows.reduce((s, d) => s + d.realisasi, 0);
+        cumT += t;
+        cumR += r;
+        const dev = r - t;
+        const pct = t > 0 ? (r / t) * 100 : 0;
+        return { bulan: m, t, r, dev, pct, cumT, cumR };
+      });
+
+      document.getElementById('monthlyTrendTableBody').innerHTML = rows.map(row => `
+        <tr class="hover:bg-slate-50">
+          <td class="py-3 px-4 font-bold text-slate-800">${row.bulan}</td>
+          <td class="py-3 px-4 text-right">${fmtNum(row.t)}</td>
+          <td class="py-3 px-4 text-right font-bold text-[#0072CE]">${fmtNum(row.r)}</td>
+          <td class="py-3 px-4 text-right font-semibold ${row.dev >= 0 ? 'text-emerald-600' : 'text-rose-600'}">
+            ${row.dev >= 0 ? '+' : ''}${fmtNum(row.dev)}
+          </td>
+          <td class="py-3 px-4 text-right font-bold">${fmtPct(row.pct)}</td>
+          <td class="py-3 px-4 text-right text-slate-600">${fmtNum(row.cumT)}</td>
+          <td class="py-3 px-4 text-right font-bold text-[#0A2540]">${fmtNum(row.cumR)}</td>
+        </tr>
+      `).join('');
+
+      const ctxFull = document.getElementById('monthlyTrendFullChart').getContext('2d');
+      if (state.charts.monthlyFull) state.charts.monthlyFull.destroy();
+      state.charts.monthlyFull = new Chart(ctxFull, {
+        type: 'bar',
+        data: {
+          labels: rows.map(r => r.bulan),
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Target Bulanan',
+              data: rows.map(r => r.t),
+              backgroundColor: 'rgba(10, 37, 64, 0.75)',
+              borderRadius: 5,
+              yAxisID: 'y'
+            },
+            {
+              type: 'bar',
+              label: 'Realisasi Bulanan',
+              data: rows.map(r => r.r),
+              backgroundColor: 'rgba(0, 114, 206, 0.85)',
+              borderRadius: 5,
+              yAxisID: 'y'
+            },
+            {
+              type: 'line',
+              label: 'Realisasi Kumulatif (YTD)',
+              data: rows.map(r => r.cumR),
+              borderColor: '#F59E0B',
+              backgroundColor: '#FFD100',
+              borderWidth: 3,
+              tension: 0.3,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              type: 'linear',
+              position: 'left',
+              title: { display: true, text: 'Bulanan (Pelanggan)' }
+            },
+            y1: {
+              type: 'linear',
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: 'Kumulatif (Pelanggan)' }
+            }
+          }
+        }
+      });
+    }
+
+    // --- 5.6 ANALISIS & EVALUASI (SHEET 1 & SHEET 5) ---
+    function renderAnalysisSection(filtered, totalTarget, totalRealisasi, pencapaian, sisaTarget) {
+      if (filtered.length === 0) {
+        document.getElementById('dashboardAnalysisCards').innerHTML =
+          `<p class="text-sm text-slate-500">Tidak ada data pada filter yang dipilih.</p>`;
+        document.getElementById('fullAnalysisContainer').innerHTML =
+          `<p class="text-sm text-slate-500">Tidak ada data untuk dianalisis.</p>`;
+        return;
+      }
+
+      // 1. ULP Tertinggi & Terendah
+      const ulpMap = {};
+      filtered.forEach(d => {
+        if (!ulpMap[d.ulp]) ulpMap[d.ulp] = { ulp: d.ulp, t: 0, r: 0 };
+        ulpMap[d.ulp].t += d.target;
+        ulpMap[d.ulp].r += d.realisasi;
+      });
+      const ulpArr = Object.values(ulpMap).map(u => ({
+        ...u,
+        pct: u.t > 0 ? (u.r / u.t) * 100 : 0
+      })).sort((a, b) => b.pct - a.pct);
+
+      const topULP = ulpArr[0];
+      const lowULP = ulpArr[ulpArr.length - 1];
+
+      // 2. Segmen Pelanggan dengan Pertumbuhan Terbesar
+      const segMap = {};
+      filtered.forEach(d => {
+        if (!segMap[d.segmen]) segMap[d.segmen] = { segmen: d.segmen, t: 0, r: 0 };
+        segMap[d.segmen].t += d.target;
+        segMap[d.segmen].r += d.realisasi;
+      });
+      const segArr = Object.values(segMap).sort((a, b) => b.r - a.r);
+      const topSegmen = segArr[0];
+      const segShare = totalRealisasi > 0 ? (topSegmen.r / totalRealisasi) * 100 : 0;
+
+      // 3. Tren Penambahan Pelanggan Setiap Bulan
+      const mMap = {};
+      filtered.forEach(d => {
+        if (!mMap[d.bulan]) mMap[d.bulan] = { bulan: d.bulan, r: 0, t: 0 };
+        mMap[d.bulan].r += d.realisasi;
+        mMap[d.bulan].t += d.target;
+      });
+      const mArr = Object.values(mMap).sort((a, b) => MONTH_ORDER.indexOf(a.bulan) - MONTH_ORDER.indexOf(b.bulan));
+      const bestMonth = [...mArr].sort((a, b) => b.r - a.r)[0];
+      const avgMonthly = mArr.length > 0 ? totalRealisasi / mArr.length : 0;
+
+      // 4. Realisasi vs Target
+      const deviasiTotal = totalRealisasi - totalTarget;
+
+      // 5. Rekomendasi Percepatan Penambahan Pelanggan
+      const rekomendasiList = [
+        `Fokus akselerasi penyambungan baru dan pemasaran jemput bola pada <strong>${lowULP.ulp}</strong> (capaian ${fmtPct(lowULP.pct)}) melalui program bundling tambah daya &amp; penyambungan kolektif.`,
+        `Optimalkan momentum segmen <strong>${topSegmen.segmen}</strong> (${fmtPct(segShare)} dari total realisasi) serta ekspansi kemitraan kawasan perumahan/komersial di <strong>${topULP.ulp}</strong>.`,
+        sisaTarget > 0
+          ? `Dibutuhkan rata-rata minimal <strong>${fmtNum(Math.ceil(sisaTarget / Math.max(1, 12 - mArr.length)))} pelanggan/bulan</strong> pada sisa periode berjalan untuk menutup sisa target sebesar <strong>${fmtNum(sisaTarget)} pelanggan</strong>.`
+          : `Target periode terpilih telah terlampaui (+${fmtNum(Math.abs(deviasiTotal))} pelanggan). Pertahankan SLA kecepatan penyambungan (TMP) dan akuisisi pelanggan potensial Bisnis/Industri.`
+      ];
+
+      // Render Compact Insights untuk Tab 1 (Dashboard)
+      document.getElementById('dashboardAnalysisCards').innerHTML = `
+        <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+            <i class="fa-solid fa-trophy"></i>
+          </div>
+          <div class="text-xs sm:text-sm">
+            <p class="font-bold text-slate-800">ULP Pencapaian Tertinggi &amp; Terendah</p>
+            <p class="text-slate-600 mt-0.5">
+              Tertinggi: <strong class="text-emerald-700">${topULP.ulp} (${fmtPct(topULP.pct)})</strong> &bull;
+              Terendah: <strong class="text-rose-600">${lowULP.ulp} (${fmtPct(lowULP.pct)})</strong>
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-blue-50 text-[#0072CE] flex items-center justify-center shrink-0 mt-0.5">
+            <i class="fa-solid fa-users-rays"></i>
+          </div>
+          <div class="text-xs sm:text-sm">
+            <p class="font-bold text-slate-800">Segmen Pertumbuhan Terbesar</p>
+            <p class="text-slate-600 mt-0.5">
+              Segmen <strong class="text-[#0072CE]">${topSegmen.segmen}</strong> mendominasi dengan <strong>${fmtNum(topSegmen.r)} pelanggan</strong> (${fmtPct(segShare)} dari total realisasi).
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0 mt-0.5">
+            <i class="fa-solid fa-arrow-trend-up"></i>
+          </div>
+          <div class="text-xs sm:text-sm">
+            <p class="font-bold text-slate-800">Tren Bulanan &amp; Realisasi vs Target</p>
+            <p class="text-slate-600 mt-0.5">
+              Rata-rata penambahan <strong>${fmtNum(avgMonthly)} plg/bln</strong> (puncak pada bulan <strong>${bestMonth.bulan}: ${fmtNum(bestMonth.r)} plg</strong>). Deviasi kumulatif: <strong class="${deviasiTotal >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${deviasiTotal >= 0 ? '+' : ''}${fmtNum(deviasiTotal)} plg</strong>.
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-3">
+          <div class="w-8 h-8 rounded-lg bg-[#FFD100] text-[#0A2540] flex items-center justify-center shrink-0 mt-0.5">
+            <i class="fa-solid fa-lightbulb"></i>
+          </div>
+          <div class="text-xs sm:text-sm">
+            <p class="font-bold text-[#0A2540]">Rekomendasi Percepatan Penambahan Pelanggan</p>
+            <p class="text-slate-700 mt-0.5 leading-relaxed">${rekomendasiList[0]}</p>
+          </div>
+        </div>
+      `;
+
+      // Render Full Evaluation Cards untuk Tab 5 (Analisis & Evaluasi)
+      document.getElementById('fullAnalysisContainer').innerHTML = `
+        <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/60">
+          <h3 class="font-extrabold text-[#0A2540] flex items-center gap-2 text-base">
+            <i class="fa-solid fa-ranking-star text-emerald-600"></i>
+            1. Evaluasi Pencapaian ULP Tertinggi &amp; Terendah
+          </h3>
+          <p class="text-sm text-slate-600 mt-2 leading-relaxed">
+            Berdasarkan data periode terpilih, <strong>${topULP.ulp}</strong> mencatat kinerja tertinggi dengan realisasi <strong>${fmtNum(topULP.r)} pelanggan</strong> dari target <strong>${fmtNum(topULP.t)} pelanggan</strong> (<strong>${fmtPct(topULP.pct)}</strong>). Sebaliknya, <strong>${lowULP.ulp}</strong> berada pada posisi terendah dengan capaian <strong>${fmtPct(lowULP.pct)}</strong> (${fmtNum(lowULP.r)} dari ${fmtNum(lowULP.t)} pelanggan).
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/60">
+          <h3 class="font-extrabold text-[#0A2540] flex items-center gap-2 text-base">
+            <i class="fa-solid fa-chart-pie text-[#0072CE]"></i>
+            2. Segmen Pelanggan dengan Pertumbuhan Terbesar
+          </h3>
+          <p class="text-sm text-slate-600 mt-2 leading-relaxed">
+            Segmen <strong>${topSegmen.segmen}</strong> menjadi motor utama penambahan pelanggan di PLN UP3 Sorong dengan kontribusi <strong>${fmtNum(topSegmen.r)} pelanggan</strong> atau <strong>${fmtPct(segShare)}</strong> dari seluruh sambungan baru yang terealisasi.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/60">
+          <h3 class="font-extrabold text-[#0A2540] flex items-center gap-2 text-base">
+            <i class="fa-solid fa-calendar-check text-cyan-600"></i>
+            3. Tren Penambahan Pelanggan Setiap Bulan
+          </h3>
+          <p class="text-sm text-slate-600 mt-2 leading-relaxed">
+            Sepanjang <strong>${mArr.length} bulan</strong> data yang dianalisis, rata-rata pertumbuhan mencapai <strong>${fmtNum(avgMonthly)} pelanggan/bulan</strong>. Realisasi bulanan tertinggi terjadi pada bulan <strong>${bestMonth.bulan}</strong> sebanyak <strong>${fmtNum(bestMonth.r)} pelanggan</strong>.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/60">
+          <h3 class="font-extrabold text-[#0A2540] flex items-center gap-2 text-base">
+            <i class="fa-solid fa-scale-balanced text-indigo-600"></i>
+            4. Perbandingan Realisasi terhadap Target
+          </h3>
+          <p class="text-sm text-slate-600 mt-2 leading-relaxed">
+            Secara agregat, realisasi mencapai <strong>${fmtNum(totalRealisasi)} pelanggan</strong> dibandingkan target <strong>${fmtNum(totalTarget)} pelanggan</strong> (capaian <strong>${fmtPct(pencapaian)}</strong>), menghasilkan deviasi sebesar <strong class="${deviasiTotal >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${deviasiTotal >= 0 ? '+' : ''}${fmtNum(deviasiTotal)} pelanggan</strong>.
+          </p>
+        </div>
+
+        <div class="md:col-span-2 p-5 rounded-2xl border border-amber-300 bg-amber-50/70">
+          <h3 class="font-extrabold text-[#0A2540] flex items-center gap-2 text-base">
+            <i class="fa-solid fa-rocket text-amber-600"></i>
+            5. Rekomendasi Percepatan Penambahan Pelanggan (Action Plan)
+          </h3>
+          <ul class="mt-3 space-y-2 text-sm text-slate-700 list-disc pl-5">
+            ${rekomendasiList.map(r => `<li>${r}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    // --- 5.7 TABEL DATA SUMBER (SHEET 2) ---
+    function renderRawDataTable(filtered) {
+      const q = state.filters.search.toLowerCase().trim();
+      const searched = q
+        ? filtered.filter(r =>
+            r.bulan.toLowerCase().includes(q) ||
+            r.ulp.toLowerCase().includes(q) ||
+            r.segmen.toLowerCase().includes(q)
+          )
+        : filtered;
+
+      document.getElementById('rawTableSummary').textContent = `${fmtNum(searched.length)} Baris Ditampilkan`;
+
+      const tbody = document.getElementById('rawDataTableBody');
+      if (searched.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="py-8 text-center text-slate-500 text-sm">
+              Tidak ditemukan data yang sesuai dengan filter/pencarian.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = searched.slice(0, 250).map((row, i) => {
+        const dev = row.realisasi - row.target;
+        const pct = row.target > 0 ? (row.realisasi / row.target) * 100 : 0;
+        return `
+          <tr class="hover:bg-blue-50/40 transition">
+            <td class="py-2.5 px-4 text-slate-500">${i + 1}</td>
+            <td class="py-2.5 px-4 font-semibold text-slate-800">${row.bulan}</td>
+            <td class="py-2.5 px-4 font-bold text-[#0A2540]">${row.ulp}</td>
+            <td class="py-2.5 px-4">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                ${row.segmen}
+              </span>
+            </td>
+            <td class="py-2.5 px-4 text-right text-slate-600">${fmtNum(row.target)}</td>
+            <td class="py-2.5 px-4 text-right font-bold text-[#0072CE]">${fmtNum(row.realisasi)}</td>
+            <td class="py-2.5 px-4 text-right font-semibold ${dev >= 0 ? 'text-emerald-600' : 'text-rose-600'}">
+              ${dev >= 0 ? '+' : ''}${fmtNum(dev)}
+            </td>
+            <td class="py-2.5 px-4 text-right font-bold">${fmtPct(pct)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // =========================================================================
+    // 6. PARSER FILE CSV / EXCEL (SHEETJS) & EKSPOR 5 SHEET
+    // =========================================================================
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+
+          // Cari sheet "Data Pelanggan" jika ada, jika tidak ambil sheet pertama
+          const targetSheetName = workbook.SheetNames.find(name =>
+            name.toLowerCase().includes('data') || name.toLowerCase().includes('pelanggan')
+          ) || workbook.SheetNames[0];
+
+          const worksheet = workbook.Sheets[targetSheetName];
+          const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+          if (!jsonRows || jsonRows.length === 0) {
+            showToast('File Kosong', 'Tidak ditemukan baris data di dalam file yang diunggah.', 'error');
+            return;
+          }
+
+          // Pemetaan kolom cerdas (mendukung berbagai variasi nama header)
+          const parsedRows = [];
+          jsonRows.forEach(raw => {
+            const keys = Object.keys(raw);
+            const findCol = (keywords) => {
+              const k = keys.find(key => keywords.some(kw => key.toLowerCase().includes(kw)));
+              return k ? raw[k] : undefined;
+            };
+
+            const rawBulan = findCol(['bulan', 'periode', 'month', 'waktu', 'tgl', 'tanggal']);
+            const rawULP = findCol(['ulp', 'unit', 'rayon', 'area', 'wilayah']);
+            const rawSegmen = findCol(['segmen', 'tarif', 'golongan', 'kelompok', 'kategori', 'jenis']);
+            const rawTarget = findCol(['target', 'rencana', 'plan']);
+            const rawRealisasi = findCol(['realisasi', 'actual', 'aktual', 'capaian', 'jumlah', 'pelanggan']);
+
+            const tVal = Number(String(rawTarget ?? 0).replace(/[^0-9.-]/g, ''));
+            const rVal = Number(String(rawRealisasi ?? 0).replace(/[^0-9.-]/g, ''));
+
+            if (!isNaN(tVal) || !isNaN(rVal)) {
+              parsedRows.push({
+                bulan: normalizeMonth(rawBulan || 'Jan'),
+                ulp: String(rawULP || 'Sorong Kota').trim(),
+                segmen: String(rawSegmen || 'Rumah Tangga').trim(),
+                target: isNaN(tVal) ? 0 : tVal,
+                realisasi: isNaN(rVal) ? 0 : rVal
+              });
+            }
+          });
+
+          if (parsedRows.length === 0) {
+            showToast(
+              'Format Kolom Tidak Dikenali',
+              'Pastikan file memiliki kolom: Bulan, ULP, Segmen, Target, dan Realisasi.',
+              'error'
+            );
+            return;
+          }
+
+          state.rawData = parsedRows;
+          state.isCustomData = true;
+          state.customFileName = file.name;
+          state.filters = { periode: 'ALL', ulp: 'ALL', segmen: 'ALL', search: '' };
+
+          document.getElementById('dataSourceBadge').innerHTML =
+            `<i class="fa-solid fa-file-circle-check mr-1 text-emerald-300"></i> File Aktual: ${file.name}`;
+          document.getElementById('btnResetData').classList.remove('hidden');
+
+          populateFilterOptions();
+          renderAll();
+
+          showToast(
+            'Data Berhasil Dimuat!',
+            `Berhasil memproses ${fmtNum(parsedRows.length)} baris data dari "${file.name}" (Sheet: ${targetSheetName}).`,
+            'success'
+          );
+        } catch (err) {
+          console.error(err);
+          showToast('Gagal Membaca File', 'Terjadi kesalahan saat memproses file CSV/Excel Anda.', 'error');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Download Template CSV
+    function downloadTemplateCSV() {
+      const headers = ['Bulan', 'ULP', 'Segmen', 'Target', 'Realisasi'];
+      const sampleRows = [
+        ['Jan', 'Sorong Kota', 'Rumah Tangga', 30, 32],
+        ['Jan', 'Sorong Kota', 'Bisnis', 10, 11],
+        ['Jan', 'Aimas', 'Rumah Tangga', 22, 23],
+        ['Jan', 'Teminabuan', 'Rumah Tangga', 12, 10],
+        ['Jan', 'ULP lainnya', 'Rumah Tangga', 8, 8],
+        ['Feb', 'Sorong Kota', 'Rumah Tangga', 35, 36],
+        ['Feb', 'Aimas', 'Bisnis', 8, 9]
+      ];
+      const csvContent = [headers.join(','), ...sampleRows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Template_Data_Pelanggan_PLN_UP3_Sorong.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Template Diunduh', 'File Template_Data_Pelanggan_PLN_UP3_Sorong.csv siap diisi.', 'info');
+    }
+
+    // Ekspor 5 Sheet Excel sesuai rencana struktur pengguna
+    function exportFiveSheetsExcel() {
+      const wb = XLSX.utils.book_new();
+      const filtered = getFilteredData();
+
+      // Sheet 1: Dashboard (Ringkasan KPI)
+      const totalT = filtered.reduce((s, r) => s + r.target, 0);
+      const totalR = filtered.reduce((s, r) => s + r.realisasi, 0);
+      const sheet1Data = [
+        ['DASHBOARD MONITORING PELANGGAN - PLN UP3 SORONG'],
+        ['Indikator Kinerja', 'Nilai'],
+        ['Target Pelanggan', totalT],
+        ['Realisasi Pelanggan', totalR],
+        ['Pencapaian (%)', totalT > 0 ? Number(((totalR / totalT) * 100).toFixed(2)) : 0],
+        ['Sisa Target', Math.max(0, totalT - totalR)]
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet1Data), '1. Dashboard');
+
+      // Sheet 2: Data Pelanggan
+      const sheet2Data = filtered.map(r => ({
+        Bulan: r.bulan,
+        ULP: r.ulp,
+        Segmen: r.segmen,
+        Target: r.target,
+        Realisasi: r.realisasi,
+        Deviasi: r.realisasi - r.target
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet2Data), '2. Data Pelanggan');
+
+      // Sheet 3: Monitoring ULP
+      const ulps = [...new Set(filtered.map(d => d.ulp))];
+      const sheet3Data = ulps.map(u => {
+        const rows = filtered.filter(d => d.ulp === u);
+        const t = rows.reduce((s, d) => s + d.target, 0);
+        const r = rows.reduce((s, d) => s + d.realisasi, 0);
+        return {
+          ULP: u,
+          Target: t,
+          Realisasi: r,
+          Sisa_Target: Math.max(0, t - r),
+          Capaian_Persen: t > 0 ? Number(((r / t) * 100).toFixed(2)) : 0
+        };
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet3Data), '3. Monitoring ULP');
+
+      // Sheet 4: Tren Bulanan
+      const months = [...new Set(filtered.map(d => d.bulan))].sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
+      const sheet4Data = months.map(m => {
+        const rows = filtered.filter(d => d.bulan === m);
+        const t = rows.reduce((s, d) => s + d.target, 0);
+        const r = rows.reduce((s, d) => s + d.realisasi, 0);
+        return {
+          Bulan: m,
+          Target: t,
+          Realisasi: r,
+          Deviasi: r - t,
+          Capaian_Persen: t > 0 ? Number(((r / t) * 100).toFixed(2)) : 0
+        };
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet4Data), '4. Tren Bulanan');
+
+      // Sheet 5: Analisis
+      const sheet5Data = [
+        { Aspek_Evaluasi: 'Total Target', Keterangan: `${totalT} Pelanggan` },
+        { Aspek_Evaluasi: 'Total Realisasi', Keterangan: `${totalR} Pelanggan` },
+        { Aspek_Evaluasi: 'Deviasi Keseluruhan', Keterangan: `${totalR - totalT} Pelanggan` },
+        { Aspek_Evaluasi: 'Rekomendasi', Keterangan: 'Akselerasi penyambungan kolektif pada ULP dengan capaian di bawah rata-rata dan optimalisasi segmen Rumah Tangga & Bisnis.' }
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet5Data), '5. Analisis');
+
+      XLSX.writeFile(wb, 'Dashboard_Monitoring_Pelanggan_PLN_UP3_Sorong.xlsx');
+      showToast('Ekspor Berhasil', 'File Excel berisi 5 sheet utama telah diunduh.', 'success');
+    }
+
+    // =========================================================================
+    // 7. NAVIGASI TAB & EVENT LISTENERS
+    // =========================================================================
+    function switchTab(tabId) {
+      state.activeTab = tabId;
+      document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+      const targetView = document.getElementById(`view-${tabId}`);
+      if (targetView) targetView.classList.remove('hidden');
+
+      document.querySelectorAll('.sheet-tab').forEach(btn => {
+        const isTarget = btn.dataset.tab === tabId;
+        btn.classList.toggle('tab-active', isTarget);
+        btn.classList.toggle('tab-inactive', !isTarget);
+        const badge = btn.querySelector('span:first-child');
+        if (badge) {
+          badge.className = isTarget
+            ? 'w-5 h-5 rounded-md bg-blue-100 text-[#0072CE] text-[11px] font-extrabold flex items-center justify-center'
+            : 'w-5 h-5 rounded-md bg-white/20 text-white text-[11px] font-bold flex items-center justify-center';
+        }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      populateFilterOptions();
+      renderAll();
+
+      // Tab Navigation
+      document.querySelectorAll('.sheet-tab').forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      });
+
+      // Global Filters
+      document.getElementById('filterPeriode').addEventListener('change', (e) => {
+        state.filters.periode = e.target.value;
+        renderAll();
+      });
+
+      document.getElementById('filterULP').addEventListener('change', (e) => {
+        state.filters.ulp = e.target.value;
+        renderAll();
+      });
+
+      document.getElementById('filterSegmen').addEventListener('change', (e) => {
+        state.filters.segmen = e.target.value;
+        renderAll();
+      });
+
+      document.getElementById('btnClearFilters').addEventListener('click', () => {
+        state.filters = { periode: 'ALL', ulp: 'ALL', segmen: 'ALL', search: '' };
+        document.getElementById('filterPeriode').value = 'ALL';
+        document.getElementById('filterULP').value = 'ALL';
+        document.getElementById('filterSegmen').value = 'ALL';
+        document.getElementById('tableSearchInput').value = '';
+        renderAll();
+      });
+
+      // Chart Mode Toggle (Line vs Bar)
+      document.querySelectorAll('.chart-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.chartMode = btn.dataset.chartMode;
+          document.querySelectorAll('.chart-mode-btn').forEach(b => {
+            const active = b.dataset.chartMode === state.chartMode;
+            b.className = active
+              ? 'chart-mode-btn px-3 py-1 rounded-lg text-xs font-bold bg-white text-[#0072CE] shadow-sm'
+              : 'chart-mode-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900';
+          });
+          renderGrowthChart(getFilteredData());
+        });
+      });
+
+      // Search in Data Pelanggan Tab
+      document.getElementById('tableSearchInput').addEventListener('input', (e) => {
+        state.filters.search = e.target.value;
+        renderRawDataTable(getFilteredData());
+      });
+
+      // Upload CSV / Excel
+      document.getElementById('fileUploadInput').addEventListener('change', handleFileUpload);
+
+      // Download Template CSV
+      document.getElementById('btnDownloadTemplate').addEventListener('click', downloadTemplateCSV);
+
+      // Export 5 Sheets Excel
+      document.getElementById('btnExportExcel').addEventListener('click', exportFiveSheetsExcel);
+
+      // Reset to Default Simulation Data
+      document.getElementById('btnResetData').addEventListener('click', () => {
+        state.rawData = generateDefaultDataset();
+        state.isCustomData = false;
+        state.customFileName = '';
+        state.filters = { periode: 'ALL', ulp: 'ALL', segmen: 'ALL', search: '' };
+        document.getElementById('dataSourceBadge').innerHTML =
+          `<i class="fa-solid fa-database mr-1 text-[#FFD100]"></i> Dataset Simulasi (Jan–Nov)`;
+        document.getElementById('btnResetData').classList.add('hidden');
+        populateFilterOptions();
+        renderAll();
+        showToast('Data Direset', 'Dashboard kembali menggunakan dataset simulasi awal PLN UP3 Sorong.', 'info');
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+node_modules/
+_site/
+# Jangan commit data pelanggan
+*.xlsx
+*.xls
+*.csv
